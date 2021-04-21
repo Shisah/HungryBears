@@ -63,23 +63,16 @@ void beeHarvest(struct honeyPot *pot, sem_t *potFullMutex, sem_t *bearSleepMutex
   struct timeval seed;
   gettimeofday(&seed, NULL);
   srand(seed.tv_usec);
-  int i = 0;
-  while(i < 10){
+  while(true){
     sem_wait(potWriteMutex);
-    if(pot->isFull){
-      printf("locking bees %d\n", getpid());
-      //add a counter to find the last bee
-      sem_post(bearSleepMutex);
-      sem_wait(potFullMutex);
-    }
-    else{
-      addHoney(pot);
-      printf("pot at: %d bee %d produced honey\n",pot->honey, getpid());
-      i++;
-      
-      usleep(rand()%4000000);
-    }
+    sem_wait(potFullMutex);
+    addHoney(pot);
+    printf("pot at: %d bee %d produced honey\n",pot->honey, getpid());
+    //int value; 
+    //sem_getvalue(potFullMutex, &value); 
+    //printf("The value of the semaphors is %d\n", value);
     sem_post(potWriteMutex);
+    usleep(rand()%4000000);
   }
 }
 
@@ -97,11 +90,11 @@ void EATER_TEST(struct honeyPot *pot, sem_t *potFullMutex, sem_t *bearSleepMutex
     //   sleep(1);
     // }
     sem_wait(potWriteMutex);
+    sem_post(potFullMutex);
     takeHoney(pot);
     printf("pot at: %d bear %d ate honey\n",pot->honey, getpid());
-    sleep(1);
     sem_post(potWriteMutex);
-    
+    sleep(1);
   }
 }
 
@@ -118,12 +111,14 @@ int main(int argc , char *argv[] ) {
 
   //semaphore for stopping bees after reaching a full pot
   // sem_t *potFullMutex = mmap(NULL, sizeof(sem_t), PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
-  sem_t potFullMutex;
+  sem_t *potFullMutex = mmap(NULL, sizeof(sem_t), PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
+  //sem_t potFullMutex;
   sem_t bearSleepMutex;
-  sem_t potSyncMutex;
-  sem_init(&potFullMutex, 1, 0);
+  //sem_t potSyncMutex;
+  sem_t *potSyncMutex = mmap(NULL, sizeof(sem_t), PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
+  sem_init(potFullMutex, 1, 30);
   sem_init(&bearSleepMutex, 1 ,0);
-  sem_init(&potSyncMutex, 1 ,1);
+  sem_init(potSyncMutex, 1 ,1);
   
   //2 shared arrays with the PIDs of the processes, used to branch their work
   // pid_t *bees = mmap(NULL, sizeof(pid_t)*beeCount, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
@@ -145,11 +140,11 @@ int main(int argc , char *argv[] ) {
     else if (pid == 0){
       if(i < beeCount){
         //bees[i] = getpid();
-        beeHarvest(honeyBuffer, &potFullMutex, &bearSleepMutex, &potSyncMutex);
+        beeHarvest(honeyBuffer, potFullMutex, &bearSleepMutex, potSyncMutex);
       }
       else{
         //bears[i - beeCount] = getpid();
-        EATER_TEST(honeyBuffer, &potFullMutex, &bearSleepMutex, &potSyncMutex);
+        EATER_TEST(honeyBuffer, potFullMutex, &bearSleepMutex, potSyncMutex);
       }
       exit(0);
     }
