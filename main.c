@@ -59,8 +59,11 @@ void takeHoney(struct honeyPot *pot){
 
 //a producer is a bee, it makes honey unless the pot is full
 void beeHarvest(struct honeyPot *pot){
-  while(true){
+  int i = 0;
+  while(i < 10){
     addHoney(pot);
+    printf("bee %d produced honey\n", getpid());
+    i++;
     sleep(1);
   }
 }
@@ -81,7 +84,11 @@ int main(int argc , char *argv[] ) {
   pid_t *bears = mmap(NULL, sizeof(pid_t)*bearCount, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
 
   int i;
-  pid_t pid;
+  pid_t pid, wpid;
+  //pid_t parentID = getpid();
+
+  int status = 0;
+
   //make n bees and M bears
   for(i = 0; i < beeCount + bearCount; i++){
     pid = fork();
@@ -92,34 +99,20 @@ int main(int argc , char *argv[] ) {
     else if (pid == 0){
       if(i < beeCount){
         bees[i] = getpid();
+        beeHarvest(honeyBuffer);
       }
       else{
         bears[i - beeCount] = getpid();
       }
-      //if it's a bee, produce
-      if(contains(bees, beeCount, getpid())){
-        printf("imma bee, pid: %d\n", getpid());
-      }
-      //if it's a bear, consume
-      if(contains(bears, bearCount, getpid())){
-        printf("imma bear, pid: %d\n", getpid());
-      }
-      exit(0); 
-    }
-    else  {
-        wait(NULL);
+      exit(0);
     }
   }
 
-  sleep(3); //small delay to let all children initialize properly
+  while ((wpid = wait(&status)) > 0);
 
   printArray(bees, beeCount);
   printArray(bears, bearCount);
 
-  
-
-  //wait(NULL);// nobody likes zombie kids in minecraft or in C
-  //exit(0);
   // //if the pot is full, bees stop, if the pot have space, bees harvest
   // sem_t *goHarvest = mmap(NULL, sizeof(sem_t), PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
 
