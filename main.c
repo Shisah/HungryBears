@@ -6,6 +6,7 @@
 #include <string.h>
 #include <sys/mman.h>
 #include <sys/wait.h>
+#include <sys/time.h>
 
 //struct representing the honey pot, bees produce honey and bears eat from it
 struct honeyPot{
@@ -58,13 +59,49 @@ void takeHoney(struct honeyPot *pot){
 }
 
 //a producer is a bee, it makes honey unless the pot is full
-void beeHarvest(struct honeyPot *pot){
+void beeHarvest(struct honeyPot *pot, sem_t *potFullMutex, sem_t *bearSleepMutex, sem_t *potWriteMutex){
+  struct timeval seed;
+  gettimeofday(&seed, NULL);
+  srand(seed.tv_usec);
   int i = 0;
   while(i < 10){
-    addHoney(pot);
-    printf("bee %d produced honey\n", getpid());
-    i++;
+    sem_wait(potWriteMutex);
+    if(pot->isFull){
+      printf("locking bees %d\n", getpid());
+      //add a counter to find the last bee
+      sem_post(bearSleepMutex);
+      sem_wait(potFullMutex);
+    }
+    else{
+      addHoney(pot);
+      printf("pot at: %d bee %d produced honey\n",pot->honey, getpid());
+      i++;
+      
+      usleep(rand()%4000000);
+    }
+    sem_post(potWriteMutex);
+  }
+}
+
+void EATER_TEST(struct honeyPot *pot, sem_t *potFullMutex, sem_t *bearSleepMutex, sem_t *potWriteMutex){
+  while(true){
+    // if(! pot->isFull){
+    //   printf("locking bear %d\n", getpid());
+    //   sem_wait(bearSleepMutex);
+    //   //printf("locking bear %d\n", getpid());
+    //   //sem_post(potFullMutex);
+    // }
+    // else{
+    //   takeHoney(pot);
+    //   printf("pot at: %d bear %d ate honey\n",pot->honey, getpid());
+    //   sleep(1);
+    // }
+    sem_wait(potWriteMutex);
+    takeHoney(pot);
+    printf("pot at: %d bear %d ate honey\n",pot->honey, getpid());
     sleep(1);
+    sem_post(potWriteMutex);
+    
   }
 }
 
@@ -79,9 +116,18 @@ int main(int argc , char *argv[] ) {
   honeyBuffer -> isFull = honeyBuffer -> capacity == honeyBuffer -> honey;
   honeyBuffer -> isEmpty = honeyBuffer -> honey == 0;
 
+  //semaphore for stopping bees after reaching a full pot
+  // sem_t *potFullMutex = mmap(NULL, sizeof(sem_t), PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
+  sem_t potFullMutex;
+  sem_t bearSleepMutex;
+  sem_t potSyncMutex;
+  sem_init(&potFullMutex, 1, 0);
+  sem_init(&bearSleepMutex, 1 ,0);
+  sem_init(&potSyncMutex, 1 ,1);
+  
   //2 shared arrays with the PIDs of the processes, used to branch their work
-  pid_t *bees = mmap(NULL, sizeof(pid_t)*beeCount, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
-  pid_t *bears = mmap(NULL, sizeof(pid_t)*bearCount, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
+  // pid_t *bees = mmap(NULL, sizeof(pid_t)*beeCount, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
+  // pid_t *bears = mmap(NULL, sizeof(pid_t)*bearCount, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
 
   int i;
   pid_t pid, wpid;
@@ -98,11 +144,12 @@ int main(int argc , char *argv[] ) {
     }
     else if (pid == 0){
       if(i < beeCount){
-        bees[i] = getpid();
-        beeHarvest(honeyBuffer);
+        //bees[i] = getpid();
+        beeHarvest(honeyBuffer, &potFullMutex, &bearSleepMutex, &potSyncMutex);
       }
       else{
-        bears[i - beeCount] = getpid();
+        //bears[i - beeCount] = getpid();
+        EATER_TEST(honeyBuffer, &potFullMutex, &bearSleepMutex, &potSyncMutex);
       }
       exit(0);
     }
@@ -110,8 +157,8 @@ int main(int argc , char *argv[] ) {
 
   while ((wpid = wait(&status)) > 0);
 
-  printArray(bees, beeCount);
-  printArray(bears, bearCount);
+  // printArray(bees, beeCount);
+  // printArray(bears, bearCount);
 
   // //if the pot is full, bees stop, if the pot have space, bees harvest
   // sem_t *goHarvest = mmap(NULL, sizeof(sem_t), PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
