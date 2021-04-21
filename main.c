@@ -5,6 +5,7 @@
 #include <stdbool.h>
 #include <string.h>
 #include <sys/mman.h>
+#include <sys/wait.h>
 
 //struct representing the honey pot, bees produce honey and bears eat from it
 struct honeyPot{
@@ -23,6 +24,25 @@ void printPotStats(struct honeyPot *pot){
   pot->isEmpty ? "true" : "false");
 }
 
+void printArray(int *arr, int size){
+  int i;
+  for(i = 0; i < size; i++){
+    printf("%d ", arr[i]);
+  }
+  printf("\n");
+}
+
+//indicates if a pid is part of an array
+bool contains(pid_t *coll, int size, pid_t value){
+  int i;
+  for(i = 0; i < size; i++){
+    if(coll[i] == value){
+      return true;
+      break;
+    }
+  }
+  return false;
+}
 //updates the variables of the honeypot adding 1 unit of honey
 void addHoney(struct honeyPot *pot){
   pot -> honey++;
@@ -39,30 +59,71 @@ void takeHoney(struct honeyPot *pot){
 
 //a producer is a bee, it makes honey unless the pot is full
 void beeHarvest(struct honeyPot *pot){
-
+  while(true){
+    addHoney(pot);
+    sleep(1);
+  }
 }
 
-//parse arguments and initializes the honeyPot, bees and bears
-void setup(struct honeyPot *pot){
+int main(int argc , char *argv[] ) {
 
-}
+  int beeCount = atoi(argv[1]);
+  int bearCount =  atoi(argv[2]);
 
-int main(void) {
+  struct honeyPot *honeyBuffer = mmap(NULL, sizeof(struct honeyPot), PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
 
-  struct honeyPot *honeyBuffer = mmap(NULL, sizeof(struct honeyPot), PROT_READ | PROT_WRITE, MAP_SHARED |    MAP_ANONYMOUS, -1, 0);
+  honeyBuffer -> capacity = atoi (argv[3]);
+  honeyBuffer -> isFull = honeyBuffer -> capacity == honeyBuffer -> honey;
+  honeyBuffer -> isEmpty = honeyBuffer -> honey == 0;
 
-  //if the pot is full, bees stop, if the pot have space, bees harvest
-  sem_t *goHarvest = mmap(NULL, sizeof(sem_t), PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
+  //2 shared arrays with the PIDs of the processes, used to branch their work
+  pid_t *bees = mmap(NULL, sizeof(pid_t)*beeCount, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
+  pid_t *bears = mmap(NULL, sizeof(pid_t)*bearCount, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
 
-  sem_t *potFullMutex = mmap(NULL, sizeof(sem_t), PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
+  int i;
+  pid_t pid;
+  //make n bees
+  for(i = 0; i < beeCount; i++){
+    pid = fork();
+    if(pid < 0) {
+      printf("Error");
+      exit(1);
+    }
+    else if (pid == 0){
+      //printf("Child (%d): %d\n", i + 1, getpid());
+      bees[i] = getpid();
+      exit(0); 
+    }
+  }
 
-  //if the pot is empty, bears wait
-  sem_t *potEmtpyMutex = mmap(NULL, sizeof(sem_t), PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
+  //make M bears
+  for(i = 0; i < bearCount; i++){
+    pid = fork();
+    if(pid < 0) {
+      printf("Error");
+      exit(1);
+    }
+    else if (pid == 0){
+      //printf("Child (%d): %d\n", i + 1, getpid());
+      bears[i] = getpid();
+      exit(0); 
+    }
+  }
 
-  //every bear has to have ate at least 1 portion of honey before letting everyone loose
-  sem_t *everyoneAte = mmap(NULL, sizeof(sem_t), PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
+  sleep(3); //bad practice, just a patch to wait for children to fill the pid arrays
+  printArray(bees, beeCount);
+  printArray(bears, bearCount);
 
-  printPotStats(honeyBuffer);
+  // //if the pot is full, bees stop, if the pot have space, bees harvest
+  // sem_t *goHarvest = mmap(NULL, sizeof(sem_t), PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
 
-  return 0;
+  // sem_t *potFullMutex = mmap(NULL, sizeof(sem_t), PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
+
+  // //if the pot is empty, bears wait
+  // sem_t *potEmtpyMutex = mmap(NULL, sizeof(sem_t), PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
+
+  // //every bear has to have ate at least 1 portion of honey before letting everyone loose
+  // sem_t *everyoneAte = mmap(NULL, sizeof(sem_t), PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
+
+  //printPotStats(honeyBuffer);
 }
