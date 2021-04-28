@@ -94,6 +94,7 @@ void bear(struct honeyPot *pot, sem_t *potFullMutex, sem_t *bearSleepMutex, sem_
     if(pot -> isEmpty){
       pot -> cycleCount++;
       printf("\npot is empty, bear %3d wakes the bees\n\n", getpid());
+      printf("starting cycle: %d\n\n",pot -> cycleCount);
       int i;
       for(i = 0; i < pot -> capacity; i++){
         sem_post(potFullMutex);//repeat capacity times
@@ -117,9 +118,6 @@ void bear(struct honeyPot *pot, sem_t *potFullMutex, sem_t *bearSleepMutex, sem_
 }
 
 int main(int argc , char *argv[] ) {
-
-  
-
   struct honeyPot *honeyBuffer = mmap(NULL, sizeof(struct honeyPot), PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
 
   honeyBuffer -> capacity = atoi (argv[3]);
@@ -133,6 +131,9 @@ int main(int argc , char *argv[] ) {
     printf("the number of bears must be equal or lower than the capacity of the honey pot\n");
     exit(1);
   }
+
+  printf("starting simulation with:\n");
+  printPotStats(honeyBuffer);
 
   //semaphore for stopping bees after reaching a full pot
   // sem_t *potFullMutex = mmap(NULL, sizeof(sem_t), PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
