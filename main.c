@@ -20,6 +20,7 @@ struct honeyPot{
   int beeCount;
   bool isFull;
   bool isEmpty;
+  int cycleCount;
 };
 
 //shows the honeyPot values, debug purposes for now
@@ -56,12 +57,6 @@ void bee(struct honeyPot *pot, sem_t *potFullMutex, sem_t *bearSleepMutex, sem_t
     sem_wait(potFullMutex);
     usleep(rand()%BEE_RAND_SLEEP);
     sem_wait(potWriteMutex);
-    // if(pot -> bearCount <= 0){
-    //     printf("stopping bee\n");
-    //     sem_post(potWriteMutex);
-    //     sem_post(potFullMutex);
-    //     exit(0);
-    // }
     addHoney(pot);
     printf("honey level: %3d bee %3d produced honey\n",pot->honey, getpid());
     if(pot -> isFull){
@@ -80,38 +75,25 @@ void bear(struct honeyPot *pot, sem_t *potFullMutex, sem_t *bearSleepMutex, sem_
   gettimeofday(&seed, NULL);
   srand(seed.tv_usec);
   //make bear had a random between 1 and BEAR_MAX_HUNGER level of hunger
-  //int hunger = (rand() % BEAR_MAX_HUNGER) + 1;
   int ate = 0;
   while(true){
     sem_wait(bearSleepMutex);
     usleep(rand()%BEAR_RAND_SLEEP);
     sem_wait(potWriteMutex);
     takeHoney(pot);
-    //sem_post(potFullMutex); //post to release bees everytime a portion is eaten
     ate++;
     printf("honey level: %3d; bear %d ate honey; eaten %3d\n",pot->honey, getpid(), ate);
     //frees up capacity slots for bees to refill the pot
     if(pot -> isEmpty){
-      printf("\npot is empty, bear %3d wakes the bees\n\n", getpid());
+      pot -> cycleCount++;
+      printf("\npot is empty, bear %3d wakes the bees\n", getpid());
+      printf("starting cycle: %d\n\n",pot -> cycleCount);
       int i;
       for(i = 0; i < pot -> capacity; i++){
         sem_post(potFullMutex);//repeat capacity times
       }
     }
     sem_post(potWriteMutex);
-    //if bear is full, exit
-    // if(hunger == ate){
-    //   pot -> bearCount--;
-    //   printf("bear %3d is full, %3d bears remain hungry\n", getpid(), pot -> bearCount);
-    //   if(pot -> bearCount == 0){
-    //     int i;
-    //     for(i = 0; i < pot -> capacity; i++){
-    //       sem_post(potFullMutex); //repeat capacity times
-    //     }
-    //   }
-    //   exit(0);
-    // }
-    //usleep(rand()%BEAR_RAND_SLEEP);
   }
 }
 
@@ -126,9 +108,9 @@ int main(int argc , char *argv[] ) {
   honeyBuffer -> isEmpty = honeyBuffer -> honey == 0;
   honeyBuffer -> beeCount = atoi(argv[1]);
   honeyBuffer -> bearCount =  atoi(argv[2]);
+  honeyBuffer -> cycleCount = 1; //bees counts like humans
 
   //semaphore for stopping bees after reaching a full pot
-  // sem_t *potFullMutex = mmap(NULL, sizeof(sem_t), PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
   sem_t *potFullMutex = mmap(NULL, sizeof(sem_t), PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
   sem_t *bearSleepMutex = mmap(NULL, sizeof(sem_t), PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
   sem_t *potSyncMutex = mmap(NULL, sizeof(sem_t), PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
