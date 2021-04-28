@@ -1,2 +1,2 @@
 language = "c"
-run = "gcc main.c -o main -lpthread ; ./main 10 8 25"
+run = "gcc main.c -o main -lpthread ; ./main 10 8 10"

@@ -8,9 +8,8 @@
 #include <sys/wait.h>
 #include <sys/time.h>
 
-#define BEAR_RAND_SLEEP 4000000
-#define BEAR_MAX_HUNGER 10
-#define BEE_RAND_SLEEP 4000000
+#define BEAR_RAND_SLEEP 4000000 //max sleep threshold in useconds
+#define BEE_RAND_SLEEP 4000000 //max sleep threshold in useconds
 
 //struct holding the memory shared variables
 struct honeyPot{
@@ -23,13 +22,12 @@ struct honeyPot{
   int cycleCount;
 };
 
-//shows the honeyPot values, debug purposes for now
+//shows the honeyPot values
 void printPotStats(struct honeyPot *pot){
-  printf("%d capacity\n%d level\n%s full\n%s empty\n",
+  printf("%3d capacity\n%3d bears\n%3d bees\n\n",
   pot->capacity, 
-  pot->honey, 
-  pot->isFull ? "true" : "false", 
-  pot->isEmpty ? "true" : "false");
+  pot-> bearCount, 
+  pot-> beeCount);
 }
 
 //updates the variables of the honeypot adding 1 unit of honey
@@ -109,6 +107,14 @@ int main(int argc , char *argv[] ) {
   honeyBuffer -> beeCount = atoi(argv[1]);
   honeyBuffer -> bearCount =  atoi(argv[2]);
   honeyBuffer -> cycleCount = 1; //bees counts like humans
+
+  if(honeyBuffer -> capacity < honeyBuffer -> bearCount){
+    printf("the number of bears must be equal or lower than the capacity of the honey pot\n");
+    exit(1);
+  }
+
+  printf("starting simulation with:\n");
+  printPotStats(honeyBuffer);
 
   //semaphore for stopping bees after reaching a full pot
   sem_t *potFullMutex = mmap(NULL, sizeof(sem_t), PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
