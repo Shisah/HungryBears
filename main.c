@@ -89,7 +89,7 @@ void bear(struct honeyPot *pot, sem_t *potFullMutex, sem_t *bearSleepMutex, sem_
     takeHoney(pot);
     //sem_post(potFullMutex); //post to release bees everytime a portion is eaten
     ate++;
-    printf("honey level: %3d; bear %d ate honey; eaten %3d\n",pot->honey, getpid(), ate);
+    printf("honey level: %3d; bear %d ate honey; eaten %3d; hunger %3d\n",pot->honey, getpid(), ate, hunger);
     //frees up capacity slots for bees to refill the pot
     if(pot -> isEmpty){
       pot -> cycleCount++;
@@ -101,10 +101,10 @@ void bear(struct honeyPot *pot, sem_t *potFullMutex, sem_t *bearSleepMutex, sem_
       }
     }
     sem_post(potWriteMutex);
-    if bear is full, exit
+    //if bear is full, exit
     if(hunger == ate){
       pot -> bearCount--;
-      printf("bear %3d is full, %3d bears remain hungry\n", getpid(), pot -> bearCount);
+      printf("bear %3d is full, %3d bears remain hungry\n\n", getpid(), pot -> bearCount);
       if(pot -> bearCount == 0){
         int i;
         for(i = 0; i < pot -> capacity; i++){
